@@ -1,0 +1,93 @@
+Generate a transition map indicating preferred motion pathways for the robot during task execution.
+
+The input request contains:
+    - The task information as a dictionary with these fields:
+        * 'instruction': The task in natural language.
+        * 'object_grasped': The object that the robot gripper will hold in hand while executing the task.
+        * 'object_unattached': The object that the robot gripper will interact with either directly or via another object without holding it in hand.
+        * 'motion_direction': The motion direction of the robot gripper or the in-hand object while performing the task.
+    - An image of the current table-top environment captured from a top-down camera, annotated with:
+        * candidate keypoints on 'object_grasped': Red dots marked as 'P[i]' on the image, where [i] is an integer.
+        * candidate keypoints on 'object_unattached': Blue dots marked as 'Q[i]' on the image, where [i] is an integer.
+        * grid for waypoints: Grid lines that uniformly divide the image into tiles. The grid equally divides the image into columns marked as 'a', 'b', 'c', 'd', 'e' from left to right and rows marked as 1, 2, 3, 4, 5 from bottom to top.
+
+A transition map represents preferred pathways the robot should follow during motion. High-transition regions are:
+    - Intermediate waypoints along the desired motion path
+    - Regions that provide safe, efficient corridors between start and goal
+    - Areas that align with the specified motion_direction
+    - Regions that avoid sharp turns or inefficient detours
+
+IMPORTANT:
+- P points (red dots) mark the 'object_grasped' - this is your START position
+- Q points (blue dots) mark the 'object_unattached' - this is your GOAL/END position
+- Plan a pathway from where P points are located to where Q points are located
+
+Please analyze the task and motion requirements, then specify preferred pathway regions as tiles in the grid.
+
+The response should be a dictionary in JSON form, which contains:
+    - 'transition_tiles': A list of tile labels (e.g., ['b3', 'c3', 'd3']) indicating preferred motion pathways. Each tile is specified as '[column][row]' where column is a letter ('a'-'e') and row is a number (1-5). These tiles should form a corridor or pathway from the start to the goal region.
+    - 'reasoning': A brief explanation of the motion pathway and why these tiles were selected.
+
+Think step by step:
+1. Locate P points (red dots) - these mark the START position (object_grasped location)
+2. Locate Q points (blue dots) - these mark the GOAL position (object_unattached location)
+3. Identify which tiles contain P points (start tiles) and Q points (goal tiles)
+4. Consider the motion_direction constraint (forward, backward, downward, etc.)
+5. Plan an efficient path from P point tiles to Q point tiles that follows the motion_direction
+6. Select tiles that form a corridor along this path
+7. Ensure the pathway avoids obstacles (if any)
+8. Remember: columns are 'a', 'b', 'c', 'd', 'e' from left to right; rows are 1, 2, 3, 4, 5 from bottom to top
+
+Examples:
+
+Example 1:
+Task: "Move the metal watch into the ultrasound cleaner."
+Motion direction: "downward"
+Response:
+{
+    "transition_tiles": ["b3", "b2", "c3", "c2"],
+    "reasoning": "The P points (red dots) mark the watch in the lower-left region, and Q points (blue dots) mark the ultrasound cleaner in the center region. Given the 'downward' motion direction, the preferred pathway is through tiles b3-c2, which represents a downward approach from the watch to the cleaner."
+}
+
+Example 2:
+Task: "Press the red button to turn on the ultrasound cleaner."
+Motion direction: "downward"
+Response:
+{
+    "transition_tiles": ["d3", "e3", "e2"],
+    "reasoning": "The P points (red dots) show the gripper starting in the center, and Q points (blue dots) mark the button on the right side. The pathway d3→e3→e2 represents moving right toward the Q points, then approaching the button for a downward press."
+}
+
+Example 3:
+Task: "Push the blue block forward toward the bowl."
+Motion direction: "forward"
+Response:
+{
+    "transition_tiles": ["c2", "c3", "c4"],
+    "reasoning": "Forward motion means moving toward the top of the image. P points (red dots) mark the block in the lower-center region, and Q points (blue dots) mark the bowl in the upper-center. The preferred pathway is straight forward through tiles c2→c3→c4, connecting P to Q points while aligning with the forward motion direction."
+}
+
+Example 4:
+Task: "Slide the cup to the right across the table."
+Motion direction: "right"
+Response:
+{
+    "transition_tiles": ["b3", "c3", "d3", "e3"],
+    "reasoning": "P points (red dots) mark the cup on the left side, and Q points (blue dots) mark the target position on the right. The preferred pathway is a horizontal corridor through tiles b3→c3→d3→e3, connecting P to Q points while maintaining constant height and moving rightward."
+}
+
+Example 5:
+Task: "Pick up the screwdriver and place it in the toolbox, avoiding the circuit board in the center."
+Motion direction: "curved"
+Response:
+{
+    "transition_tiles": ["b2", "b3", "a4", "b4", "b5"],
+    "reasoning": "P points (red dots) mark the screwdriver location, and Q points (blue dots) mark the toolbox. Since there is an obstacle (circuit board) in the center, the preferred pathway curves around it through the left side. The path b2→b3→a4→b4→b5 creates an arc connecting P to Q points while avoiding the center."
+}
+
+Important notes:
+    - Transition tiles should form a connected path (adjacent tiles)
+    - The pathway should respect the motion_direction constraint
+    - Include intermediate waypoints, not just start and end
+    - Consider efficiency: prefer shorter, direct paths when safe
+    - Consider obstacles: prefer paths that maintain clearance from collision zones

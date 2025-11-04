@@ -2,6 +2,13 @@ import io
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
+from moka.vision.trajectory_heatmap import (
+    get_trajectory_heatmap_from_keypoints,
+    plot_trajectory_heatmap,
+    plot_trajectory_heatmap_per_object
+)
+# Motion trajectory functions are in moka.vision.motion_trajectory
+# Import them separately when needed for motion planning
 
 
 # farthest point sampling
@@ -130,3 +137,66 @@ def plot_keypoints(
         buf.seek(0)
         image = Image.open(buf)
         return image
+
+
+def get_and_plot_trajectory_heatmaps(
+    image,
+    object_vertices,
+    objects,
+    target_image_shape,
+    sigma=15,
+    num_interpolate=20,
+    alpha=0.6,
+    plot_per_object=True,
+    fname=None
+):
+    """
+    Generate and visualize trajectory heatmaps from keypoints.
+    
+    Args:
+        image: PIL image
+        object_vertices: Dict from get_keypoints_from_segmentation()
+        objects: List of object names
+        target_image_shape: (width, height) tuple
+        sigma: Gaussian spread parameter (larger = wider trajectory)
+        num_interpolate: Number of interpolation points between waypoints
+        alpha: Transparency of heatmap overlay
+        plot_per_object: If True, plot each object with different color
+        fname: Optional filename to save
+    
+    Returns:
+        trajectory_image: PIL image with trajectory heatmaps overlaid
+        trajectory_heatmaps: Dict of heatmaps per object
+    """
+    # Resize image
+    image = image.resize(target_image_shape, Image.LANCZOS)
+    w, h = target_image_shape
+    
+    # Generate trajectory heatmaps
+    trajectory_heatmaps = get_trajectory_heatmap_from_keypoints(
+        object_vertices,
+        image_shape=(h, w),
+        sigma=sigma,
+        num_interpolate=num_interpolate
+    )
+    
+    # Visualize
+    if plot_per_object:
+        trajectory_image = plot_trajectory_heatmap_per_object(
+            image,
+            trajectory_heatmaps,
+            object_vertices,
+            alpha=alpha,
+            return_PIL=True,
+            fname=fname
+        )
+    else:
+        trajectory_image = plot_trajectory_heatmap(
+            image,
+            trajectory_heatmaps,
+            alpha=alpha,
+            return_PIL=True,
+            fname=fname
+        )
+    
+    return trajectory_image, trajectory_heatmaps

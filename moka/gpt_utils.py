@@ -3,9 +3,19 @@ import base64
 import requests
 from io import BytesIO
 
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    genai = None
+
 
 # Get OpenAI API Key from environment variable
-api_key = os.environ['OPENAI_API_KEY']
+api_key = os.environ.get('OPENAI_API_KEY', '')
+
+# Get Gemini API Key from environment variable
+gemini_api_key = os.environ.get('GEMINI_API_KEY', '')
 
 # TODO(kuanfang): Maybe also support free form-responses.
 headers = {
@@ -112,12 +122,14 @@ def request_gpt(message,
 
     try:
         res = response.json()['choices'][0]['message']['content']
-    except Exception:
-        print('\nInvalid response: ')
-        print(response)
-        print('\nInvalid response: ')
-        print(response.json())
-        exit()
+    except Exception as e:
+        print('\n' + '='*70)
+        print('ERROR: Invalid API response')
+        print('='*70)
+        print(f'Status Code: {response.status_code}')
+        print(f'Response: {response.json()}')
+        print('='*70)
+        raise Exception(f"Failed to get valid response from OpenAI API: {response.json()}")
 
     return res
 
@@ -236,11 +248,85 @@ def request_gpt_incontext(
 
     try:
         res = response.json()['choices'][0]['message']['content']
-    except Exception:
-        print('\nInvalid response: ')
-        print(response)
-        print('\nInvalid response: ')
-        print(response.json())
-        exit()
+    except Exception as e:
+        print('\n' + '='*70)
+        print('ERROR: Invalid API response')
+        print('='*70)
+        print(f'Status Code: {response.status_code}')
+        print(f'Response: {response.json()}')
+        print('='*70)
+        raise Exception(f"Failed to get valid response from OpenAI API: {response.json()}")
 
     return res
+
+# ============================================================================
+# GEMINI API SUPPORT
+# ============================================================================
+
+DEFAULT_GEMINI_MODEL_NAME = 'gemini-2.5-pro'
+
+
+def request_gemini(message,
+                   images,
+                   meta_prompt='',
+                   model_name=None):
+    """
+    Request Gemini API (similar interface to request_gpt).
+
+    Args:
+        message: Text prompt or list of text prompts
+        images: PIL Image or list of PIL Images
+        meta_prompt: System prompt (prepended to message)
+        model_name: Gemini model name (default: gemini-2.5-pro)
+
+    Returns:
+        Response text from Gemini
+    """
+    if not GEMINI_AVAILABLE:
+        raise ImportError("google-generativeai not installed. Run: pip install google-generativeai")
+
+    if not gemini_api_key:
+        raise ValueError("GEMINI_API_KEY environment variable not set")
+
+    # Configure Gemini API
+    genai.configure(api_key=gemini_api_key)
+
+    # Set default model
+    if model_name is None:
+        model_name = DEFAULT_GEMINI_MODEL_NAME
+
+    # Create model
+    model = genai.GenerativeModel(model_name)
+
+    # Prepare content
+    content = []
+
+    # Add system prompt as first message if provided
+    if meta_prompt:
+        content.append(meta_prompt + "\n\n")
+
+    # Add messages
+    if not isinstance(message, list):
+        message = [message]
+    for msg in message:
+        content.append(msg)
+
+    # Add images
+    if images is not None:
+        if not isinstance(images, list):
+            images = [images]
+        for img in images:
+            content.append(img)
+
+    try:
+        # Generate content
+        response = model.generate_content(content)
+        res = response.text
+        return res
+    except Exception as e:
+        print('\n' + '='*70)
+        print('ERROR: Invalid Gemini API response')
+        print('='*70)
+        print(f'Error: {e}')
+        print('='*70)
+        raise Exception(f"Failed to get valid response from Gemini API: {e}")

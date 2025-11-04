@@ -1,0 +1,61 @@
+Generate an affordance map indicating where the robot should move to accomplish the task.
+
+The input request contains:
+    - The task information as a dictionary with these fields:
+        * 'instruction': The task in natural language.
+        * 'object_grasped': The object that the robot gripper will hold in hand while executing the task.
+        * 'object_unattached': The object that the robot gripper will interact with either directly or via another object without holding it in hand.
+        * 'motion_direction': The motion direction of the robot gripper or the in-hand object while performing the task.
+    - An image of the current table-top environment captured from a top-down camera, annotated with:
+        * candidate keypoints on 'object_grasped': Red dots marked as 'P[i]' on the image, where [i] is an integer.
+        * candidate keypoints on 'object_unattached': Blue dots marked as 'Q[i]' on the image, where [i] is an integer.
+        * grid for waypoints: Grid lines that uniformly divide the image into tiles. The grid equally divides the image into columns marked as 'a', 'b', 'c', 'd', 'e' from left to right and rows marked as 1, 2, 3, 4, 5 from bottom to top.
+
+An affordance map represents regions where the robot should move to accomplish the task. High affordance regions are:
+    - Goal locations (where objects should be placed) - LOOK AT WHERE Q POINTS (BLUE DOTS) ARE LOCATED
+    - Target interaction points (where contact should be made) - LOOK AT WHERE Q POINTS (BLUE DOTS) ARE LOCATED
+    - Regions along the desired motion path
+
+CRITICAL: The Q points (blue dots) mark the 'object_unattached', which is your target object or goal location.
+Your affordance tiles MUST include the tiles where Q points are visible. Do NOT guess or make assumptions about
+where the target object is - use the Q point locations shown in the image.
+
+Please analyze the task and specify high-affordance regions as tiles in the grid.
+
+The response should be a dictionary in JSON form, which contains:
+    - 'affordance_tiles': A list of tile labels (e.g., ['c3', 'd4', 'b2']) indicating regions with high affordance. Each tile is specified as '[column][row]' where column is a letter ('a'-'e') and row is a number (1-5).
+    - 'reasoning': A brief explanation of why these regions have high affordance for this task.
+
+Think step by step:
+1. FIRST, locate the Q points (blue dots) in the image - these mark the target 'object_unattached'
+2. Identify which tiles contain the Q points - these are your primary affordance regions
+3. Identify the goal/target location for the task (this should match where Q points are located)
+4. Identify intermediate regions along the desired motion path if needed
+5. Select tiles that cover these high-affordance regions, ensuring Q point tiles are included
+6. Remember: columns are 'a', 'b', 'c', 'd', 'e' from left to right; rows are 1, 2, 3, 4, 5 from bottom to top
+
+Examples:
+
+Example 1:
+Task: "Move the metal watch into the ultrasound cleaner."
+Response:
+{
+    "affordance_tiles": ["c3", "c4", "d3", "d4"],
+    "reasoning": "The Q points (blue dots) are located on the ultrasound cleaner in the center-right region (tiles c3-d4). These tiles have high affordance as they represent the target location where the watch should be placed."
+}
+
+Example 2:
+Task: "Press the red button to turn on the ultrasound cleaner."
+Response:
+{
+    "affordance_tiles": ["e2", "e3"],
+    "reasoning": "The Q points (blue dots) mark the red button on the right side of the ultrasound cleaner (tiles e2-e3). These tiles have high affordance as they represent the target interaction point for pressing."
+}
+
+Example 3:
+Task: "Push the blue block forward toward the bowl."
+Response:
+{
+    "affordance_tiles": ["c4", "c5", "d4", "d5"],
+    "reasoning": "The Q points (blue dots) mark the bowl in the upper-center region (tiles c4-d5). These tiles have high affordance as they represent the goal location where the block should be pushed to, in the forward direction (toward the top of the image)."
+}

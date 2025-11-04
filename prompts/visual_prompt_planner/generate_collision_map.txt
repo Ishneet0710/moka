@@ -1,0 +1,101 @@
+Generate a collision map indicating regions the robot should avoid during task execution.
+
+The input request contains:
+    - The task information as a dictionary with these fields:
+        * 'instruction': The task in natural language.
+        * 'object_grasped': The object that the robot gripper will hold in hand while executing the task.
+        * 'object_unattached': The object that the robot gripper will interact with either directly or via another object without holding it in hand.
+        * 'motion_direction': The motion direction of the robot gripper or the in-hand object while performing the task.
+    - An image of the current table-top environment captured from a top-down camera, annotated with:
+        * candidate keypoints on 'object_grasped': Red dots marked as 'P[i]' on the image, where [i] is an integer.
+        * candidate keypoints on 'object_unattached': Blue dots marked as 'Q[i]' on the image, where [i] is an integer.
+        * grid for waypoints: Grid lines that uniformly divide the image into tiles. The grid equally divides the image into columns marked as 'a', 'b', 'c', 'd', 'e' from left to right and rows marked as 1, 2, 3, 4, 5 from bottom to top.
+
+A collision map represents regions the robot should avoid to prevent collisions or unwanted interactions. High-collision regions are:
+    - Fragile objects that should not be disturbed
+    - Obstacles between the start and goal positions
+    - Objects that are not involved in the task but could be knocked over
+    - Regions that would cause unsafe or inefficient motions
+
+CRITICAL - READ CAREFULLY:
+- P points (red dots) mark the 'object_grasped' - this is the object being manipulated, do NOT mark as collision
+- Q points (blue dots) mark the 'object_unattached' - this is the TARGET/GOAL object
+- NEVER mark tiles containing Q points as collision zones - these are where the robot MUST go
+- NEVER mark the target object as a collision zone, even if it seems like an obstacle
+- Focus ONLY on OTHER objects in the scene that are:
+  * NOT marked with P or Q points
+  * NOT involved in the task at all
+  * Objects that should be avoided (fragile items, obstacles in the path, etc.)
+
+Please analyze the scene and specify high-collision regions as tiles in the grid.
+
+The response should be a dictionary in JSON form, which contains:
+    - 'collision_tiles': A list of tile labels (e.g., ['a1', 'b5', 'e3']) indicating regions to avoid. Each tile is specified as '[column][row]' where column is a letter ('a'-'e') and row is a number (1-5). Use an empty list [] if there are no significant obstacles.
+    - 'reasoning': A brief explanation in the following format:
+      1. First, state which tiles contain Q points (the target - do NOT include these)
+      2. Then, list OTHER objects visible in the scene besides the task objects
+      3. Finally, explain which of these other objects should be avoided and why
+
+Think step by step:
+1. Locate Q points (blue dots) - these mark the TARGET object. Note which tiles contain Q points.
+2. Locate P points (red dots) - these mark the object_grasped. Note which tiles contain P points.
+3. Scan the entire scene and identify ALL visible objects
+4. Exclude from consideration:
+   - Any objects at or near Q point locations (these are the target, NOT obstacles)
+   - Any objects at or near P point locations (these are being manipulated, NOT obstacles)
+5. From the remaining objects, identify which could interfere with the motion path from P to Q
+6. Identify fragile, unstable, or delicate objects that should be avoided
+7. Select tiles for these OTHER objects that are truly obstacles
+8. Double-check: Are any of your selected tiles near Q points? If YES, remove them immediately
+9. Remember: columns are 'a', 'b', 'c', 'd', 'e' from left to right; rows are 1, 2, 3, 4, 5 from bottom to top
+
+Examples:
+
+Example 1:
+Task: "Move the metal watch into the ultrasound cleaner."
+Response:
+{
+    "collision_tiles": ["a1", "a2", "b1"],
+    "reasoning": "Q points (blue dots) mark the ultrasound cleaner in tiles c3-d4, which is the target - not marking as collision. Other objects in scene: glass container in bottom-left corner. The glass container (tiles a1-b1) is fragile and not involved in the task. The robot should avoid this region to prevent knocking it over."
+}
+
+Example 2:
+Task: "Press the red button to turn on the ultrasound cleaner."
+Response:
+{
+    "collision_tiles": [],
+    "reasoning": "Q points (blue dots) mark the red button in tiles e2-e3, which is the target - not marking as collision. Other objects in scene: ultrasound cleaner body. The path to the button is clear. No significant obstacles detected that need to be avoided."
+}
+
+Example 3:
+Task: "Push the blue block forward toward the bowl."
+Response:
+{
+    "collision_tiles": ["a4", "a5", "e1", "e2"],
+    "reasoning": "Q points (blue dots) mark the bowl in tiles c4-d5, which is the target - not marking as collision. Other objects in scene: tall vase on left side, tool on right side. The vase (tiles a4-a5) and tool (tiles e1-e2) are not involved in the task and should be avoided to prevent collisions during the forward pushing motion."
+}
+
+Example 4:
+Task: "Pick up the screwdriver and place it in the toolbox."
+Response:
+{
+    "collision_tiles": ["c3", "d3"],
+    "reasoning": "Q points (blue dots) mark the toolbox in tiles b4-b5, which is the target - not marking as collision. Other objects in scene: circuit board in center region. The circuit board (tiles c3-d3) is delicate and should not be disturbed. The robot should avoid moving over this region when transporting the screwdriver to the toolbox."
+}
+
+Example 5:
+Task: "Move the red cube onto the green tile."
+Response:
+{
+    "collision_tiles": ["d2", "d3"],
+    "reasoning": "Q points (blue dots) mark the green tile in tiles b3, which is the target - not marking as collision. Other objects in scene: purple tile in center-right area, robot arm structure above the table. The purple tile (d2) is not involved in the task and could be knocked if the robot moves through that region. The robot arm structure (d3) should also be avoided to prevent self-collision."
+}
+
+Important notes:
+    - Only mark regions as collision zones if there are actual obstacles
+    - NEVER mark tiles with Q points as collision zones - Q points mark the TARGET/GOAL
+    - Do NOT mark the target object (object_unattached) as a collision zone
+    - Do NOT mark the grasped object (object_grasped) as a collision zone
+    - Look for objects in the scene BEYOND just the task objects (e.g., other tiles, robot parts, decorative objects, tools not being used, etc.)
+    - Consider safety margins: objects near the edge of a tile may require the entire tile to be marked for collision avoidance
+    - If there are no obstacles other than the task objects, return an empty list []

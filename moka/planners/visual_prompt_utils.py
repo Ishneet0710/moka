@@ -347,9 +347,9 @@ def plot_keypoints(
 
         ax.plot(
             keypoint[0], keypoint[1],
-            color=color, alpha=0.4,
-            marker='o', markersize=10,
-            markeredgewidth=2, markeredgecolor='black',
+            color=color, alpha=0.8,  # Increased from 0.4 to 0.8 for better visibility
+            marker='o', markersize=15,  # Increased from 10 to 15
+            markeredgewidth=3, markeredgecolor='white',  # White edge for contrast
         )
 
         if add_caption:
@@ -363,7 +363,9 @@ def plot_keypoints(
                 min(max(30, keypoint[1]), h - 30),
             )
 
-            ax.annotate(text, keypoint, xytext, size=12,)
+            ax.annotate(text, keypoint, xytext, size=16, weight='bold',
+                       color='white', bbox=dict(boxstyle='round,pad=0.3',
+                                                 facecolor=color, edgecolor='white', linewidth=2))
 
 
 def annotate_candidate_keypoints(
@@ -429,8 +431,11 @@ def annotate_grid(image, grid_size):
                          (j + 0.5) / grid_size[1]],
                         [w * (i + 0.5) / grid_size[0], h *
                          (j + 0.5) / grid_size[1]],
-                        size=10,
-                        color='white')
+                        size=14,  # Increased from 10
+                        weight='bold',
+                        color='white',
+                        bbox=dict(boxstyle='round,pad=0.3',
+                                 facecolor='black', alpha=0.5, edgecolor='white'))
 
     buf = io.BytesIO()
     fig.savefig(buf, transparent=True, bbox_inches='tight',
